@@ -1,0 +1,10 @@
+version: "3.4"
+services:
+  aosp:
+    container_name: aosp
+    image: xiaoming996/aosp:1.0.8
+    volumes:
+      - ./android-10.0.0_r2:/aosp
+    network_mode: "bridge"
+    tty: true
+
