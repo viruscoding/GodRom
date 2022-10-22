@@ -87,6 +87,18 @@
 #include <asm/processor.h>
 #include "internal.h"
 
+static inline uid_t get_task_uid(struct task_struct *task)
+{
+	uid_t uid = 0;
+	const struct cred *cred;
+
+	cred = get_task_cred(task);
+	uid = cred->uid.val;
+
+	put_cred(cred);
+	return uid;
+}
+
 static inline void task_name(struct seq_file *m, struct task_struct *p)
 {
 	int i;
@@ -136,8 +148,8 @@ static const char * const task_state_array[] = {
 	"R (running)",		/*   0 */
 	"S (sleeping)",		/*   1 */
 	"D (disk sleep)",	/*   2 */
-	"S (sleeping)",		/*   4 */
-	"S (sleeping)",		/*   8 */
+	"T (stopped)",		/*   4 */
+	"t (tracing stop)",	/*   8 */
 	"X (dead)",		/*  16 */
 	"Z (zombie)",		/*  32 */
 };
@@ -165,12 +177,11 @@ static inline void task_state(struct seq_file *m, struct pid_namespace *ns,
 	rcu_read_lock();
 	if (pid_alive(p)) {
 		struct task_struct *tracer = ptrace_parent(p);
-		if (tracer)
+		if (tracer && get_task_uid(tracer) == get_task_uid(p))
 			tpid = task_pid_nr_ns(tracer, ns);
 		ppid = task_tgid_nr_ns(rcu_dereference(p->real_parent), ns);
 		leader = p->group_leader;
 	}
-	tpid=0;
 	cred = get_task_cred(p);
 	seq_printf(m,
 		"State:\t%s\n"
@@ -181,7 +192,7 @@ static inline void task_state(struct seq_file *m, struct pid_namespace *ns,
 		"Uid:\t%d\t%d\t%d\t%d\n"
 		"Gid:\t%d\t%d\t%d\t%d\n"
 		"Ngid:\t%d\n",
-		get_task_state(p),
+		tpid ? get_task_state(p): "R (running)",
 		leader ? task_pid_nr_ns(leader, ns) : 0,
 		pid_nr_ns(pid, ns),
 		ppid, tpid,
@@ -392,8 +403,12 @@ static int do_task_stat(struct seq_file *m, struct pid_namespace *ns,
 	unsigned long rsslim = 0;
 	char tcomm[sizeof(task->comm)];
 	unsigned long flags;
+	struct task_struct *tracer;
 
 	state = *get_task_state(task);
+	tracer = ptrace_parent(task);
+	if (tracer && get_task_uid(tracer) != get_task_uid(task))
+		state = 'R';
 	vsize = eip = esp = 0;
 	permitted = ptrace_may_access(task, PTRACE_MODE_READ_FSCREDS | PTRACE_MODE_NOAUDIT);
 	mm = get_task_mm(task);

@@ -4,8 +4,8 @@
 
 cpus=$(grep ^processor /proc/cpuinfo | wc -l)
 
-source build/envsetup.sh
-lunch aosp_sailfish-userdebug
+source build/envsetup.sh &&
+lunch aosp_sailfish-userdebug &&
 
-threads=$((cpus * 2))
+threads=$((cpus * 2)) &&
 make -j $threads
